@@ -69,3 +69,101 @@ SET default_block_size = '262144';
 
 statement ok
 ATTACH '__TEST_DIR__/default_size.db';
+
+# Test: 512KB block size with 10M rows of random data (above old 256KB maximum)
+
+statement ok
+ATTACH '__TEST_DIR__/large_block_512k.db' (BLOCK_SIZE 524288);
+
+statement ok
+CREATE TABLE large_block_512k.test_table AS SELECT i, random() AS rand_val, md5(i::VARCHAR || random()::VARCHAR) AS rand_str FROM range(10000000) t(i);
+
+query I
+SELECT COUNT(*) FROM large_block_512k.test_table;
+----
+10000000
+
+query I
+SELECT SUM(i) FROM large_block_512k.test_table;
+----
+49999995000000
+
+statement ok
+DETACH large_block_512k;
+
+# Re-attach and verify data persisted correctly
+
+statement ok
+ATTACH '__TEST_DIR__/large_block_512k.db' AS large_block_512k;
+
+query I
+SELECT COUNT(*) FROM large_block_512k.test_table;
+----
+10000000
+
+query I
+SELECT SUM(i) FROM large_block_512k.test_table;
+----
+49999995000000
+
+statement ok
+DETACH large_block_512k;
+
+# Test: 1MB block size with 10M rows of random data
+
+statement ok
+ATTACH '__TEST_DIR__/large_block_1m.db' (BLOCK_SIZE 1048576);
+
+statement ok
+CREATE TABLE large_block_1m.test_table AS SELECT i, random() AS rand_val, md5(i::VARCHAR || random()::VARCHAR) AS rand_str FROM range(10000000) t(i);
+
+query I
+SELECT COUNT(*) FROM large_block_1m.test_table;
+----
+10000000
+
+query I
+SELECT SUM(i) FROM large_block_1m.test_table;
+----
+49999995000000
+
+statement ok
+DETACH large_block_1m;
+
+# Re-attach and verify data persisted correctly
+
+statement ok
+ATTACH '__TEST_DIR__/large_block_1m.db' AS large_block_1m;
+
+query I
+SELECT COUNT(*) FROM large_block_1m.test_table;
+----
+10000000
+
+query I
+SELECT SUM(i) FROM large_block_1m.test_table;
+----
+49999995000000
+
+statement ok
+DETACH large_block_1m;
+
+# Test: SET default_block_size to values above old maximum
+
+statement ok
+SET default_block_size = '524288';
+
+statement ok
+SET default_block_size = '1048576';
+
+# Reset to default
+
+statement ok
+SET default_block_size = '262144';
+
+# Test: block size that exceeds new maximum
+
+statement error
+ATTACH '__TEST_DIR__/way_too_big.db' (BLOCK_SIZE 4294967296);
+----
+the block size must be lesser or equal than the maximum block size

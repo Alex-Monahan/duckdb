@@ -51,7 +51,7 @@ struct Storage {
 	//! The minimum block allocation size. This is the minimum size we test in our nightly tests.
 	constexpr static idx_t MIN_BLOCK_ALLOC_SIZE = 16384ULL;
 	//! The maximum block allocation size. This is the maximum size currently supported by duckdb.
-	constexpr static idx_t MAX_BLOCK_ALLOC_SIZE = 262144ULL;
+	constexpr static idx_t MAX_BLOCK_ALLOC_SIZE = 1073741824ULL;
 	//! The default block header size for blocks written to storage.
 	constexpr static idx_t DEFAULT_BLOCK_HEADER_SIZE = sizeof(idx_t);
 	//! The default block header size for blocks written to storage.
