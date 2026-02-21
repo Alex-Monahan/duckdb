@@ -1,0 +1,93 @@
+# name: test/sql/attach/attach_large_block_size_100m.test_slow
+# description: Test large block sizes with 100M rows of mixed types (integer, float, string).
+# group: [attach]
+
+# Test: 512KB block size with 100M rows of integer, float, and string data
+
+statement ok
+ATTACH '__TEST_DIR__/large_block_512k_100m.db' (BLOCK_SIZE 524288);
+
+statement ok
+CREATE TABLE large_block_512k_100m.test_table AS
+SELECT
+    i AS id,
+    (i * 7 + 13) % 1000000 AS int_val,
+    (i * 0.31415 + 2.718)::FLOAT AS float_val,
+    'row_' || (i % 100000)::VARCHAR || '_data' AS str_val
+FROM range(100000000) t(i);
+
+query I
+SELECT COUNT(*) FROM large_block_512k_100m.test_table;
+----
+100000000
+
+query IIII
+SELECT MIN(id), MAX(id), SUM(int_val), COUNT(DISTINCT str_val) FROM large_block_512k_100m.test_table;
+----
+0	99999999	49999950000000	100000
+
+statement ok
+DETACH large_block_512k_100m;
+
+# Re-attach and verify data persisted correctly
+
+statement ok
+ATTACH '__TEST_DIR__/large_block_512k_100m.db' AS large_block_512k_100m;
+
+query I
+SELECT COUNT(*) FROM large_block_512k_100m.test_table;
+----
+100000000
+
+query IIII
+SELECT MIN(id), MAX(id), SUM(int_val), COUNT(DISTINCT str_val) FROM large_block_512k_100m.test_table;
+----
+0	99999999	49999950000000	100000
+
+statement ok
+DETACH large_block_512k_100m;
+
+# Test: 1MB block size with 100M rows of integer, float, and string data
+
+statement ok
+ATTACH '__TEST_DIR__/large_block_1m_100m.db' (BLOCK_SIZE 1048576);
+
+statement ok
+CREATE TABLE large_block_1m_100m.test_table AS
+SELECT
+    i AS id,
+    (i * 7 + 13) % 1000000 AS int_val,
+    (i * 0.31415 + 2.718)::FLOAT AS float_val,
+    'row_' || (i % 100000)::VARCHAR || '_data' AS str_val
+FROM range(100000000) t(i);
+
+query I
+SELECT COUNT(*) FROM large_block_1m_100m.test_table;
+----
+100000000
+
+query IIII
+SELECT MIN(id), MAX(id), SUM(int_val), COUNT(DISTINCT str_val) FROM large_block_1m_100m.test_table;
+----
+0	99999999	49999950000000	100000
+
+statement ok
+DETACH large_block_1m_100m;
+
+# Re-attach and verify data persisted correctly
+
+statement ok
+ATTACH '__TEST_DIR__/large_block_1m_100m.db' AS large_block_1m_100m;
+
+query I
+SELECT COUNT(*) FROM large_block_1m_100m.test_table;
+----
+100000000
+
+query IIII
+SELECT MIN(id), MAX(id), SUM(int_val), COUNT(DISTINCT str_val) FROM large_block_1m_100m.test_table;
+----
+0	99999999	49999950000000	100000
+
+statement ok
+DETACH large_block_1m_100m;
