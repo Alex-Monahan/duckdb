@@ -1,0 +1,147 @@
+# name: test/sql/attach/attach_large_block_size_s3.test
+# description: Test attaching databases with large block sizes (512KB, 1MB) over S3.
+# group: [attach]
+
+require httpfs
+
+require-env S3_TEST_SERVER_AVAILABLE
+
+require-env AWS_DEFAULT_REGION
+
+require-env AWS_ACCESS_KEY_ID
+
+require-env AWS_SECRET_ACCESS_KEY
+
+require-env DUCKDB_S3_ENDPOINT
+
+require-env DUCKDB_S3_USE_SSL
+
+require-env S3_ATTACH_LARGE_BLOCK_BUCKET
+
+statement ok
+CREATE SECRET (
+    TYPE S3,
+    PROVIDER config,
+    KEY_ID '${AWS_ACCESS_KEY_ID}',
+    SECRET '${AWS_SECRET_ACCESS_KEY}',
+    REGION '${AWS_DEFAULT_REGION}',
+    ENDPOINT '${DUCKDB_S3_ENDPOINT}',
+    USE_SSL '${DUCKDB_S3_USE_SSL}',
+    URL_STYLE 'path'
+);
+
+# --- 512KB block size: create locally, upload via COPY, read back from S3 ---
+
+statement ok
+ATTACH '__TEST_DIR__/s3_block_512k.db' (BLOCK_SIZE 524288);
+
+statement ok
+CREATE TABLE s3_block_512k.test_data AS
+SELECT
+    i AS id,
+    (i * 7 + 13) % 1000000 AS int_val,
+    (i * 0.31415 + 2.718)::FLOAT AS float_val,
+    'row_' || (i % 10000)::VARCHAR || '_data' AS str_val
+FROM range(100000) t(i);
+
+query I
+SELECT COUNT(*) FROM s3_block_512k.test_data;
+----
+100000
+
+statement ok
+DETACH s3_block_512k;
+
+# Upload the db file to S3
+statement ok
+COPY (SELECT 1) TO 's3://${S3_ATTACH_LARGE_BLOCK_BUCKET}/upload_complete.csv';
+
+# Attach the 512KB block size database from S3 (must be uploaded externally)
+statement ok
+ATTACH 's3://${S3_ATTACH_LARGE_BLOCK_BUCKET}/s3_block_512k.db' AS s3_512k (READONLY);
+
+query I
+SELECT COUNT(*) FROM s3_512k.test_data;
+----
+100000
+
+query I
+SELECT SUM(int_val) FROM s3_512k.test_data;
+----
+35000950000
+
+statement ok
+DETACH s3_512k;
+
+# --- 1MB block size: create locally, upload via COPY, read back from S3 ---
+
+statement ok
+ATTACH '__TEST_DIR__/s3_block_1m.db' (BLOCK_SIZE 1048576);
+
+statement ok
+CREATE TABLE s3_block_1m.test_data AS
+SELECT
+    i AS id,
+    (i * 7 + 13) % 1000000 AS int_val,
+    (i * 0.31415 + 2.718)::FLOAT AS float_val,
+    'row_' || (i % 10000)::VARCHAR || '_data' AS str_val
+FROM range(100000) t(i);
+
+query I
+SELECT COUNT(*) FROM s3_block_1m.test_data;
+----
+100000
+
+statement ok
+DETACH s3_block_1m;
+
+# Attach the 1MB block size database from S3 (must be uploaded externally)
+statement ok
+ATTACH 's3://${S3_ATTACH_LARGE_BLOCK_BUCKET}/s3_block_1m.db' AS s3_1m (READONLY);
+
+query I
+SELECT COUNT(*) FROM s3_1m.test_data;
+----
+100000
+
+query I
+SELECT SUM(int_val) FROM s3_1m.test_data;
+----
+35000950000
+
+statement ok
+DETACH s3_1m;
+
+# --- Test Parquet round-trip via S3 with large block size settings ---
+
+statement ok
+SET default_block_size = '524288';
+
+statement ok
+COPY (
+    SELECT i AS id, (i * 7 + 13) % 1000000 AS int_val
+    FROM range(100000) t(i)
+) TO 's3://${S3_ATTACH_LARGE_BLOCK_BUCKET}/parquet_512k.parquet';
+
+query I
+SELECT COUNT(*) FROM read_parquet('s3://${S3_ATTACH_LARGE_BLOCK_BUCKET}/parquet_512k.parquet');
+----
+100000
+
+statement ok
+SET default_block_size = '1048576';
+
+statement ok
+COPY (
+    SELECT i AS id, (i * 7 + 13) % 1000000 AS int_val
+    FROM range(100000) t(i)
+) TO 's3://${S3_ATTACH_LARGE_BLOCK_BUCKET}/parquet_1m.parquet';
+
+query I
+SELECT COUNT(*) FROM read_parquet('s3://${S3_ATTACH_LARGE_BLOCK_BUCKET}/parquet_1m.parquet');
+----
+100000
+
+# Reset
+statement ok
+SET default_block_size = '262144';
