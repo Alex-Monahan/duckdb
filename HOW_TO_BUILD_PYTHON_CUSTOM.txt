@@ -1,0 +1,31 @@
+This is how to build DuckDB (with the pieces that Python needs), 
+then create a Python library that links to that build 
+(Hopefully this allows for tinkering with build settings for Clickbench, which uses Python)
+
+activate the virtual environment .venv
+cd /Users/alex/Documents/DuckDB/duckdb_alex_repo/
+SDKROOT="/Library/Developer/CommandLineTools/SDKs/MacOSX15.1.sdk" GEN=ninja BUILD_ICU=1 BUILD_TPCH=1 BUILD_JSON=1 make
+cd tools/pythonpkg
+DUCKDB_BINARY_DIR=/Users/alex/Documents/DuckDB/duckdb_alex_repo/build/release  python3 -m pip install . -v &> pip_install.log
+
+
+TODO:
+- Run clickbench locally?
+- Run clickbench in the cloud
+- Compile DuckDB and then re-run Clickbench in the cloud
+- Measure resource utilization during Clickbench
+- Come up with a test matrix of things to test
+    - Runtime
+        - allocator background threads
+        - Allocator limits (TODO: look up again)
+        - row_group_size
+        - threads (maybe 1 less than the total to let the allocator work? Maybe 2x if not CPU bottlenecked?)
+    - Compile time
+        - Vector Size 
+        - `-march=native`
+        - LTO (link time optimization)
+- Create a script that will re-run Clickbench in a loop with different settings / scripts run 
+- Learn how to compile with a different vector size
+- Learn how to compile with LTO 
+- See what the bottlenecks are for each query (maybe then we can increase threads for certain queries if IO bound?)
+- Look at cache sizes of Clickbench environment vs. Mac to see if vector size might help (unlikely, Mark tested with it for 2048)
